@@ -1,0 +1,3 @@
+rootProject.name = 'bmobileclient'
+
+include ':app'
