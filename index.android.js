@@ -1,9 +1,3 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- * @flow
- */
-
 import React, { Component } from 'react';
 import {
     AppRegistry,
@@ -15,11 +9,9 @@ import {
 } from 'react-native';
 
 import Socket from 'react-native-socketio';
+import CONFIG from './app/config';
 
-const SOCKET_IP_ADDRESS = '192.168.1.45';
-const SOCKET_PORT = 8989;
-
-let socket = new Socket(`http://${SOCKET_IP_ADDRESS}:${SOCKET_PORT}`, { path: '/socket' });
+let socket = new Socket(`http://${CONFIG.SOCKET_IP_ADDRESS}:${CONFIG.SOCKET_PORT}`, { path: '/socket' });
 
 socket.on('connect', () => {
     console.log('Socket connected');
