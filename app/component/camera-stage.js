@@ -38,14 +38,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   textOverlay: {
-    top: 50,
-    flex: 1,
+    flex: 0.3,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#02ae9e',
-    borderRadius: 40,
-    marginBottom: 20
+    backgroundColor: 'rgba(255,255,255,0.1)'
+  },
+  textOverlayText: {
+    flex: 1,
+    flexDirection: 'row',
   },
   bottomOverlay: {
     bottom: 0,
@@ -83,12 +84,16 @@ export default class CameraStage extends Component {
       camera: {
         aspect: Camera.constants.Aspect.fill,
         captureTarget: Camera.constants.CaptureTarget.cameraRoll,
-        type: Camera.constants.Type.back,
+        type: Camera.constants.Type.front,
         orientation: Camera.constants.Orientation.auto,
         flashMode: Camera.constants.FlashMode.auto,
       },
       isRecording: false,
-      robotToken: '123'
+      robotToken: null,
+      moveInstructions: {
+          moveType: null,
+          direction: null
+      }
     };
 
     this.takePicture = this.takePicture.bind(this);
@@ -109,14 +114,19 @@ export default class CameraStage extends Component {
 
             console.log('this.robotToken', this.state.robotToken);
 
-            setInterval(function () {
-                socket.emit('robotstream', { token: robot[0].token, buffer: 'asdn1H820UDAS-buffer-LOKO' });
-            }, 2000);
+            socket.on('robotstream:error', (err) => {
+                console.error(err);
+            });
+
+            socket.on('robotmove', (moveInstructions) => {
+                console.log(moveInstructions);
+
+                this.setState({ moveInstructions: moveInstructions[0] });
+            });
         });
     });
 
     socket.connect();
-
   }
 
   takePicture() {
@@ -215,77 +225,45 @@ export default class CameraStage extends Component {
 
   render() {
     return (
-      <View style={styles.container}>
-        <StatusBar
-          animated
-          hidden
-        />
-        <Camera
-          ref={(cam) => {
-            this.camera = cam;
-          }}
-          style={styles.preview}
-          aspect={this.state.camera.aspect}
-          captureTarget={this.state.camera.captureTarget}
-          type={this.state.camera.type}
-          flashMode={this.state.camera.flashMode}
-          defaultTouchToFocus />
+        <View style={styles.container}>
 
-        <View style={styles.textOverlay}>
-            <Text>{ this.state.robotToken }</Text>
-        </View>
+            <StatusBar animated hidden />
 
-        <View style={[styles.overlay, styles.topOverlay]}>
-          <TouchableOpacity
-            style={styles.typeButton}
-            onPress={this.switchType}>
-            <Image source={this.typeIcon} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.flashButton}
-            onPress={this.switchFlash}>
-            <Image source={this.flashIcon} />
-          </TouchableOpacity>
-        </View>
-        <View style={[styles.overlay, styles.bottomOverlay]}>
-          {
-            !this.state.isRecording
-            &&
-            <TouchableOpacity
-                style={styles.captureButton}
-                onPress={this.takePicture}
-            >
-              <Image
-                  source={require('../assets/ic_photo_camera_36pt.png')}
-              />
-            </TouchableOpacity>
-            ||
-            null
-          }
-          <View style={styles.buttonsSpace} />
-          {
-              !this.state.isRecording
-              &&
+            <Camera
+              ref={(cam) => {
+                this.camera = cam;
+              }}
+              style={styles.preview}
+              aspect={this.state.camera.aspect}
+              captureTarget={this.state.camera.captureTarget}
+              type={this.state.camera.type}
+              flashMode={this.state.camera.flashMode}
+              defaultTouchToFocus />
+
+            <View style={[styles.overlay, styles.topOverlay]}>
               <TouchableOpacity
-                  style={styles.captureButton}
-                  onPress={this.startRecording}
-              >
-                <Image
-                    source={require('../assets/ic_videocam_36pt.png')}
-                />
+                style={styles.typeButton}
+                onPress={this.switchType}>
+                <Image source={this.typeIcon} />
               </TouchableOpacity>
-              ||
               <TouchableOpacity
-                  style={styles.captureButton}
-                  onPress={this.stopRecording}
-              >
-                <Image
-                    source={require('../assets/ic_stop_36pt.png')}
-                />
+                style={styles.flashButton}
+                onPress={this.switchFlash}>
+                <Image source={this.flashIcon} />
               </TouchableOpacity>
-          }
+            </View>
+
+            <View style={styles.textOverlay}>
+                <Text style={styles.textOverlayText}>Token: { this.state.robotToken }</Text>
+                <Text style={styles.textOverlayText}>
+                    Move type: { this.state.moveInstructions.moveType }
+                </Text>
+                <Text style={styles.textOverlayText}>
+                    Movement direction: { this.state.moveInstructions.direction }
+                </Text>
+            </View>
+
         </View>
-      </View>
     );
   }
 }
