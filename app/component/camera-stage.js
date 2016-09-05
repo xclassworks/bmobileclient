@@ -6,6 +6,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     View,
+    ToastAndroid,
     Text
 } from 'react-native';
 
@@ -105,6 +106,16 @@ export default class CameraStage extends Component {
     this.switchFlash = this.switchFlash.bind(this);
 
     let socket = new Socket(`http://${CONFIG.SOCKET_IP_ADDRESS}:${CONFIG.SOCKET_PORT}`, { path: '/socket' });
+    var usbs = new USBSerial();
+
+    async function writeAsync(value) {
+
+        try {
+            await usbs.writeAsync(value);
+        } catch(err) {
+            ToastAndroid.show(err.toString(), ToastAndroid.LONG);
+        }
+    }
 
     socket.on('connect', () => {
         console.log('Socket connected');
@@ -117,13 +128,19 @@ export default class CameraStage extends Component {
             console.log('this.robotToken', this.state.robotToken);
 
             socket.on('robotstream:error', (err) => {
-                console.error(err);
+                ToastAndroid.show(err.toString(), ToastAndroid.LONG);
             });
 
             socket.on('robotmove', (moveInstructions) => {
-                console.log(moveInstructions);
+                let mi = moveInstructions[0];
 
-                this.setState({ moveInstructions: moveInstructions[0] });
+                console.log(mi);
+
+                if (mi.moveType == 'MOTOR' && mi.direction == 'FOWARD') {
+                    writeAsync('M');
+                }
+
+                this.setState({ moveInstructions: mi });
             });
         });
     });
@@ -132,14 +149,20 @@ export default class CameraStage extends Component {
 
     var me = this;
 
-    async function getDeviceList() {
-        let usbs = new USBSerial();
-        let devices = await usbs.getDeviceListAsync();
+    async function openDeviceByProductId(productId) {
 
-        me.setState({ deviceList: devices });
+        try {
+            let device = await usbs.openDeviceByProductIdAsync(productId);
+
+            console.log(device);
+
+            me.setState({ deviceList: [device] });
+        } catch(err) {
+            ToastAndroid.show(err.toString(), ToastAndroid.LONG);
+        }
     }
 
-    getDeviceList();
+    openDeviceByProductId(67);
   }
 
   takePicture() {
