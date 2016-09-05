@@ -9,6 +9,7 @@
     "react": "15.3.1",
     "react-native": "0.32.0",
     "react-native-camera": "git+https://github.com/lwansbrough/react-native-camera.git",
-    "react-native-socketio": "git+https://github.com/xclassworks/react-native-socketio.git"
+    "react-native-socketio": "git+https://github.com/xclassworks/react-native-socketio.git",
+    "react-native-usbserial": "git+https://github.com/xclassworks/react-native-usbserial.git"
   }
 }

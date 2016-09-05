@@ -11,6 +11,7 @@ import {
 
 import Camera from 'react-native-camera';
 import Socket from 'react-native-socketio';
+import USBSerial from 'react-native-usbserial';
 
 import CONFIG from '../config';
 
@@ -93,7 +94,8 @@ export default class CameraStage extends Component {
       moveInstructions: {
           moveType: null,
           direction: null
-      }
+      },
+      deviceList: []
     };
 
     this.takePicture = this.takePicture.bind(this);
@@ -127,6 +129,17 @@ export default class CameraStage extends Component {
     });
 
     socket.connect();
+
+    var me = this;
+
+    async function getDeviceList() {
+        let usbs = new USBSerial();
+        let devices = await usbs.getDeviceListAsync();
+
+        me.setState({ deviceList: devices });
+    }
+
+    getDeviceList();
   }
 
   takePicture() {
@@ -261,6 +274,14 @@ export default class CameraStage extends Component {
                 <Text style={styles.textOverlayText}>
                     Movement direction: { this.state.moveInstructions.direction }
                 </Text>
+            </View>
+
+            <View style={styles.textOverlay}>
+                {
+                    this.state.deviceList.map((device) => {
+                        return <Text style={styles.textOverlayText}>name: {device.name} productId: {device.productId} deviceName: {device.deviceName}</Text>
+                    })
+                }
             </View>
 
         </View>
