@@ -68,6 +68,10 @@ const styles = StyleSheet.create({
   flashButton: {
     padding: 5,
   },
+  token: {
+    padding: 5,
+    color: 'rgba(255, 255, 255, 0.5)'
+  },
   buttonsSpace: {
     width: 10
   },
@@ -107,6 +111,7 @@ export default class CameraStage extends Component {
 
     let socket = new Socket(`http://${CONFIG.SOCKET_IP_ADDRESS}:${CONFIG.SOCKET_PORT}`, { path: '/socket' });
     var usbs = new USBSerial();
+    var me = this;
 
     async function writeAsync(value) {
 
@@ -115,6 +120,67 @@ export default class CameraStage extends Component {
         } catch(err) {
             ToastAndroid.show(err.toString(), ToastAndroid.LONG);
         }
+    }
+
+    async function openDeviceByProductId(productId) {
+
+        try {
+            let device = await usbs.openDeviceByProductIdAsync(productId);
+
+            console.log(device);
+
+            me.setState({ deviceList: [device] });
+        } catch(err) {
+            ToastAndroid.show(err.toString(), ToastAndroid.LONG);
+        }
+    }
+
+    function treatMovement(moveInstructions) {
+
+        switch (moveInstructions.moveType) {
+            case 'CAMERA':
+
+                // Treat movement for Camera
+                switch (moveInstructions.direction) {
+                    case 'FOWARD':
+                        writeAsync('W');
+                        break;
+                    case 'LEFT':
+                        writeAsync('A');
+                        break;
+                    case 'RIGHT':
+                        writeAsync('D');
+                        break;
+                    case 'BACK':
+                        writeAsync('S');
+                        break;
+                }
+                break;
+            case 'MOTOR':
+
+                // Treat movement for Motor
+                switch (moveInstructions.direction) {
+                    case 'FOWARD':
+                        writeAsync('F');
+                        break;
+                    case 'LEFT':
+                        writeAsync('L');
+                        break;
+                    case 'RIGHT':
+                        writeAsync('R');
+                        break;
+                    case 'BACK':
+                        writeAsync('B');
+                        break;
+                }
+                break;
+        }
+    }
+
+    function sendStop(command) {
+        command = command || 'S';
+
+        writeAsync(command);
     }
 
     socket.on('connect', () => {
@@ -134,33 +200,20 @@ export default class CameraStage extends Component {
             socket.on('robotmove', (moveInstructions) => {
                 let mi = moveInstructions[0];
 
-                console.log(mi);
-
-                if (mi.moveType == 'MOTOR' && mi.direction == 'FOWARD') {
-                    writeAsync('M');
-                }
+                treatMovement(mi);
 
                 this.setState({ moveInstructions: mi });
+            });
+
+            socket.on('robotstop', (moveInstruction) => {
+                console.log('robotstop. command', moveInstruction.command);
+
+                sendStop(moveInstruction.command);
             });
         });
     });
 
     socket.connect();
-
-    var me = this;
-
-    async function openDeviceByProductId(productId) {
-
-        try {
-            let device = await usbs.openDeviceByProductIdAsync(productId);
-
-            console.log(device);
-
-            me.setState({ deviceList: [device] });
-        } catch(err) {
-            ToastAndroid.show(err.toString(), ToastAndroid.LONG);
-        }
-    }
 
     openDeviceByProductId(67);
   }
@@ -282,6 +335,11 @@ export default class CameraStage extends Component {
                 onPress={this.switchType}>
                 <Image source={this.typeIcon} />
               </TouchableOpacity>
+
+                <Text style={styles.token}>
+                    { this.state.robotToken }
+                </Text>
+
               <TouchableOpacity
                 style={styles.flashButton}
                 onPress={this.switchFlash}>
@@ -289,27 +347,27 @@ export default class CameraStage extends Component {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.textOverlay}>
-                <Text style={styles.textOverlayText}>Token: { this.state.robotToken }</Text>
-                <Text style={styles.textOverlayText}>
-                    Move type: { this.state.moveInstructions.moveType }
-                </Text>
-                <Text style={styles.textOverlayText}>
-                    Movement direction: { this.state.moveInstructions.direction }
-                </Text>
-            </View>
-
-            <View style={styles.textOverlay}>
-                {
-                    this.state.deviceList.map((device) => {
-                        return <Text style={styles.textOverlayText}>name: {device.name} productId: {device.productId} deviceName: {device.deviceName}</Text>
-                    })
-                }
-            </View>
-
         </View>
     );
   }
 }
+
+// <View style={styles.textOverlay}>
+//     <Text style={styles.textOverlayText}>Token: { this.state.robotToken }</Text>
+//     <Text style={styles.textOverlayText}>
+//         Move type: { this.state.moveInstructions.moveType }
+//     </Text>
+//     <Text style={styles.textOverlayText}>
+//         Movement direction: { this.state.moveInstructions.direction }
+//     </Text>
+// </View>
+//
+// <View style={styles.textOverlay}>
+//     {
+//         this.state.deviceList.map((device) => {
+//             return <Text style={styles.textOverlayText}>name: {device.name} productId: {device.productId} deviceName: {device.deviceName}</Text>
+//         })
+//     }
+// </View>
 
 AppRegistry.registerComponent('CameraStage', () => CameraStage);
