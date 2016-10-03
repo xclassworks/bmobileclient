@@ -9,12 +9,10 @@ import {
     ToastAndroid,
     Text
 } from 'react-native';
-
 import Camera from 'react-native-camera';
 import Socket from 'react-native-socketio';
 import USBSerial from 'react-native-usbserial';
-
-import CONFIG from '../config';
+import CONFIG from '../bconfig/configs.json';
 
 const styles = StyleSheet.create({
   container: {
@@ -109,9 +107,10 @@ export default class CameraStage extends Component {
     this.switchType = this.switchType.bind(this);
     this.switchFlash = this.switchFlash.bind(this);
 
-    let socket = new Socket(`http://${CONFIG.SOCKET_IP_ADDRESS}:${CONFIG.SOCKET_PORT}`, { path: '/socket' });
-    var usbs = new USBSerial();
-    var me = this;
+    let socket = new Socket(`http://${CONFIG.socketServer.ipAddress}:${CONFIG.socketServer.port}`,
+                                { path: '/socket' });
+    let usbs = new USBSerial();
+    let me = this;
 
     async function writeAsync(value) {
 
@@ -211,6 +210,10 @@ export default class CameraStage extends Component {
                 sendStop(moveInstruction.command);
             });
         });
+    });
+
+    socket.on('error', (err) => {
+        ToastAndroid.show(err.toString(), ToastAndroid.LONG);
     });
 
     socket.connect();

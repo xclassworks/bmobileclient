@@ -126,6 +126,7 @@ android {
 }
 
 dependencies {
+    compile project(':react-native-webrtc')
     compile project(':react-native-usbserial')
     compile project(':react-native-camera')
     compile project(':react-native-socketio')

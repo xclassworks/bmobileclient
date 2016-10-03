@@ -8,13 +8,13 @@ import {
     NativeModules
 } from 'react-native';
 
-import CameraStage from './app/component/camera-stage';
+import App from './app/component/app';
 
 class bmobileclient extends Component {
 
     render() {
         return (
-            <CameraStage />
+            <App />
         );
     }
 }
