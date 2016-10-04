@@ -31,8 +31,6 @@ export default class RTCCamera extends Component {
     constructor(props) {
         super(props);
 
-        console.log(props);
-
         this.state = {
             stream:     null,
             streamURL:  null

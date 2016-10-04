@@ -34,14 +34,18 @@ const styles = StyleSheet.create({
         top: 0,
         flex: 1,
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center'
     },
     token: {
-        padding: 5,
-        color: '#32cf9f',
-        flex: 1,
-        textAlign: 'center'
+        padding: 8,
+        backgroundColor: '#32cf9f',
+        color: '#FFF',
+        fontWeight: 'bold',
+        width: 100,
+        textAlign: 'center',
+        borderRadius: 10,
+        zIndex: 50
     }
 });
 
