@@ -12,7 +12,7 @@ import {
 import RTCCamera from './RTCCamera';
 
 import Socket from 'react-native-socketio';
-import USBSerial from 'react-native-usbserial';
+import UsbSerial from 'react-native-usbserial';
 import CONFIG from '../bconfig/configs.json';
 
 const styles = StyleSheet.create({
@@ -54,129 +54,117 @@ export default class App extends Component {
         super(props);
 
         this.state = {
-            robotToken: null,
-            deviceList: [],
+            token: null,
+            robotDevice: null,
             moveInstructions: {
                 moveType:   null,
                 direction:  null
             }
         };
 
+        const usbs = new UsbSerial();
         const socket = new Socket(`http://${CONFIG.socketServer.ipAddress}:${CONFIG.socketServer.port}`,
                                     { path: '/socket' });
-        const usbs = new USBSerial();
 
         this.socket = socket;
+        this.usbs = usbs;
 
-        let me = this;
+        this.connectToSocket();
+        this.connectToRobotByUsbSerial();
+    }
 
-        async function writeAsync(value) {
+  connectToSocket() {
 
-            try {
-                await usbs.writeAsync(value);
-            } catch(err) {
-                ToastAndroid.show(err.toString(), ToastAndroid.LONG);
-            }
-        }
+      this.socket.on('connect', () => {
+          console.log('Socket connected');
 
-        async function openDeviceByProductId(productId) {
+          socket.emit('robotregister', { nickName: 'Awesome first robot' });
 
-            try {
-                let device = await usbs.openDeviceByProductIdAsync(productId);
+          socket.on('robotregister:success', (robot) => {
+              this.setState({ token: robot[0].token });
 
-                console.log(device);
+              console.log('Token', this.state.token);
 
-                me.setState({ deviceList: [device] });
-            } catch(err) {
-                ToastAndroid.show(err.toString(), ToastAndroid.LONG);
-            }
-        }
+              socket.on('robotmove', (moveInstructions) => {
+                  const mi = moveInstructions[0];
 
-        function treatMovement(moveInstructions) {
+                  this.setState({ moveInstructions: mi });
 
-            switch (moveInstructions.moveType) {
-                case 'CAMERA':
+                  const movementCmd = getMovementCommand(mi);
 
-                    // Treat movement for Camera
-                    switch (moveInstructions.direction) {
-                        case 'FOWARD':
-                            writeAsync('W');
-                            break;
-                        case 'LEFT':
-                            writeAsync('A');
-                            break;
-                        case 'RIGHT':
-                            writeAsync('D');
-                            break;
-                        case 'BACK':
-                            writeAsync('S');
-                            break;
-                    }
-                    break;
-                case 'MOTOR':
+                  if (movementCmd) {
+                      this.sendRobotCommand(movementCmd);
+                  } else {
+                      showErrorToast('Received invalid move instructions');
+                  }
+              });
 
-                    // Treat movement for Motor
-                    switch (moveInstructions.direction) {
-                        case 'FOWARD':
-                            writeAsync('F');
-                            break;
-                        case 'LEFT':
-                            writeAsync('L');
-                            break;
-                        case 'RIGHT':
-                            writeAsync('R');
-                            break;
-                        case 'BACK':
-                            writeAsync('B');
-                            break;
-                    }
-                    break;
-            }
-        }
+              socket.on('robotstop', (moveInstruction) => {
+                  console.log('robotstop', moveInstruction.command);
 
-        function sendStop(command) {
-            command = command || 'S';
+                  const stopCmp = moveInstruction.command || 'S';
 
-            writeAsync(command);
-        }
+                  this.sendRobotCommand(stopCmp);
+              });
+          });
+      });
 
-        socket.on('connect', () => {
-            console.log('Socket connected');
+      this.socket.on('error', (err) => {
+          showErrorToast(err.toString());
+      });
 
-            socket.emit('robotregister', { nickName: 'UmaUmaUmaE' });
+      this.socket.connect();
+  }
 
-            socket.on('robotregister:success', (robot) => {
-                this.setState({ robotToken: robot[0].token });
+  connectToRobotByUsbSerial() {
+      const me = this;
 
-                console.log('this.robotToken', this.state.robotToken);
+      async function getDeviceAsync(productId) {
 
-                socket.on('robotstream:error', (err) => {
-                    ToastAndroid.show(err.toString(), ToastAndroid.LONG);
-                });
+          try {
+              const deviceList = await me.usbs.getDeviceListAsync();
 
-                socket.on('robotmove', (moveInstructions) => {
-                    let mi = moveInstructions[0];
+              const filteredDevList = deviceList.filter((dev) => {
+                 return dev.productId == productId;
+              });
 
-                    treatMovement(mi);
+              if (filteredDevList.length > 0) {
+                  // Get the first
+                  const deviceObj = filteredDevList[0];
 
-                    this.setState({ moveInstructions: mi });
-                });
+                  let usbSerialDevice = await me.usbs.openDeviceAsync(deviceObj);
 
-                socket.on('robotstop', (moveInstruction) => {
-                    console.log('robotstop. command', moveInstruction.command);
+                  if (usbSerialDevice)
+                      me.setState({ robotDevice: usbSerialDevice });
+                  else
+                      showErrorToast('usbSerialDevice retured empty');
+              } else
+                  showErrorToast(`No device found in list with the productId ${productId}`);
 
-                    sendStop(moveInstruction.command);
-                });
-            });
-        });
+          } catch (err) {
+              showErrorToast(err.toString());
+          }
+      }
 
-        socket.on('error', (err) => {
-            ToastAndroid.show(err.toString(), ToastAndroid.LONG);
-        });
+      getDeviceAsync(67);
+  }
 
-        socket.connect();
+  sendRobotCommand(command) {
 
-        openDeviceByProductId(67);
+      async function _writeAsync(cmp) {
+
+          try {
+              await this.state.robotDevice.writeAsync();
+          } catch (err) {
+              showErrorToast(err.toString());
+          }
+      }
+
+      if (this.state.robotDevice) {
+          _writeAsync(command);
+      } else {
+          showErrorToast('There is no device connected. Impossible write');
+      }
   }
 
   render() {
@@ -186,7 +174,7 @@ export default class App extends Component {
 
             <View style={[styles.overlay, styles.topOverlay]}>
                 <Text style={styles.token}>
-                    { this.state.robotToken }
+                    { this.state.token }
                 </Text>
             </View>
 
@@ -194,6 +182,49 @@ export default class App extends Component {
         </View>
     );
   }
+}
+
+function showErrorToast(...strError) {
+
+    if (strError.length > 0) {
+        console.warn(strError.join(' '));
+
+        ToastAndroid.show(strError.join(' '), ToastAndroid.LONG);
+    }
+}
+
+function getMovementCommand(moveInstructions = {}) {
+
+    switch (moveInstructions.moveType) {
+        case 'CAMERA':
+
+            // Treat movement for Camera
+            switch (moveInstructions.direction) {
+                case 'FOWARD':
+                    return 'W';
+                case 'LEFT':
+                    return 'A';
+                case 'RIGHT':
+                    return 'D';
+                case 'BACK':
+                    return 'S';
+            }
+            break;
+        case 'MOTOR':
+
+            // Treat movement for Motor
+            switch (moveInstructions.direction) {
+                case 'FOWARD':
+                    return 'F';
+                case 'LEFT':
+                    return 'L';
+                case 'RIGHT':
+                    return 'R';
+                case 'BACK':
+                    return 'B';
+            }
+            break;
+    }
 }
 
 AppRegistry.registerComponent('App', () => App);
