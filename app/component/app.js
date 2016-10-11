@@ -63,8 +63,7 @@ export default class App extends Component {
         };
 
         const usbs = new UsbSerial();
-        const socket = new Socket(`http://${CONFIG.socketServer.ipAddress}:${CONFIG.socketServer.port}`,
-                                    { path: '/socket' });
+        const socket = createSocketConnection();
 
         this.socket = socket;
         this.usbs = usbs;
@@ -75,17 +74,19 @@ export default class App extends Component {
 
   connectToSocket() {
 
+      console.log('On method connectToSocket');
+
       this.socket.on('connect', () => {
           console.log('Socket connected');
 
-          socket.emit('robotregister', { nickName: 'Awesome first robot' });
+          this.socket.emit('robotregister', { nickName: 'Awesome first robot' });
 
-          socket.on('robotregister:success', (robot) => {
+          this.socket.on('robotregister:success', (robot) => {
               this.setState({ token: robot[0].token });
 
               console.log('Token', this.state.token);
 
-              socket.on('robotmove', (moveInstructions) => {
+              this.socket.on('robotmove', (moveInstructions) => {
                   const mi = moveInstructions[0];
 
                   this.setState({ moveInstructions: mi });
@@ -99,7 +100,7 @@ export default class App extends Component {
                   }
               });
 
-              socket.on('robotstop', (moveInstruction) => {
+              this.socket.on('robotstop', (moveInstruction) => {
                   console.log('robotstop', moveInstruction.command);
 
                   const stopCmp = moveInstruction.command || 'S';
@@ -225,6 +226,15 @@ function getMovementCommand(moveInstructions = {}) {
             }
             break;
     }
+}
+
+function createSocketConnection() {
+    const url = `http://${CONFIG.socketServer.ipAddress}:${CONFIG.socketServer.port}`;
+    const config = {
+        path: '/socket'
+    };
+
+    return new Socket(url, config);
 }
 
 AppRegistry.registerComponent('App', () => App);
