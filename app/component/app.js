@@ -7,9 +7,12 @@ import {
     TouchableOpacity,
     View,
     ToastAndroid,
-    Text
+    Text,
+    ScrollView,
+    Dimensions
 } from 'react-native';
 import RTCCamera from './RTCCamera';
+import ViewersList from './ViewersList';
 
 import Socket from 'react-native-socketio';
 import UsbSerial from 'react-native-usbserial';
@@ -19,33 +22,40 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         flexDirection:      'column',
-        backgroundColor:    '#f4f4f4',
+        backgroundColor:    '#ededed',
         justifyContent:     'center',
         alignItems:         'center'
     },
-    overlay: {
-        position: 'absolute',
-        padding: 16,
-        right: 0,
-        left: 0,
-        alignItems: 'center'
+    shareButton: {
+        padding:            10,
+        position:           'absolute',
+        top:                0,
+        right:              10,
+        backgroundColor:    '#262626',
+        marginTop:          10,
+        marginRight:        10,
+        borderRadius:       50,
+        zIndex:             50,
     },
-    topOverlay: {
-        top: 0,
-        flex: 1,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center'
+    deviceIcon: {
+        backgroundColor:    '#32cf9f',
+        padding:            10,
+        borderRadius:       50,
+        position:           'absolute',
+        bottom:             10,
+        right:              10,
+        zIndex:             50,
     },
-    token: {
-        padding: 8,
-        backgroundColor: '#32cf9f',
-        color: '#FFF',
-        fontWeight: 'bold',
-        width: 100,
-        textAlign: 'center',
-        borderRadius: 10,
-        zIndex: 50
+    stageContainer: {
+        flex:           1,
+        flexDirection:  'row',
+        position:       'absolute',
+        zIndex:         10,
+        top:            0,
+        left:           0
+    },
+    stageContainerItem: {
+        flex: 1
     }
 });
 
@@ -53,13 +63,17 @@ export default class App extends Component {
     constructor(props) {
         super(props);
 
+        const dimension = Dimensions.get('window');
+
         this.state = {
             token: null,
             robotDevice: null,
             moveInstructions: {
                 moveType:   null,
                 direction:  null
-            }
+            },
+            windowWidth: dimension.width,
+            windowHeight: dimension.height
         };
 
         const usbs = new UsbSerial();
@@ -72,118 +86,155 @@ export default class App extends Component {
         this.connectToRobotByUsbSerial();
     }
 
-  connectToSocket() {
+    connectToSocket() {
 
-      console.log('On method connectToSocket');
+        this.socket.on('connect', () => {
+            console.log('Socket connected');
 
-      this.socket.on('connect', () => {
-          console.log('Socket connected');
+            this.socket.emit('robotregister', {nickName: 'Awesome first robot'});
 
-          this.socket.emit('robotregister', { nickName: 'Awesome first robot' });
+            this.socket.on('robotregister:success', (robot) => {
+                this.setState({token: robot[0].token});
 
-          this.socket.on('robotregister:success', (robot) => {
-              this.setState({ token: robot[0].token });
+                console.log('Token', this.state.token);
 
-              console.log('Token', this.state.token);
+                this.socket.on('robotmove', (moveInstructions) => {
+                    const mi = moveInstructions[0];
 
-              this.socket.on('robotmove', (moveInstructions) => {
-                  const mi = moveInstructions[0];
+                    this.setState({moveInstructions: mi});
 
-                  this.setState({ moveInstructions: mi });
+                    const movementCmd = getMovementCommand(mi);
 
-                  const movementCmd = getMovementCommand(mi);
+                    if (movementCmd) {
+                        this.sendRobotCommand(movementCmd);
+                    } else {
+                        showErrorToast('Received invalid move instructions');
+                    }
+                });
 
-                  if (movementCmd) {
-                      this.sendRobotCommand(movementCmd);
-                  } else {
-                      showErrorToast('Received invalid move instructions');
-                  }
-              });
+                this.socket.on('robotstop', (moveInstruction) => {
+                    console.log('robotstop', moveInstruction.command);
 
-              this.socket.on('robotstop', (moveInstruction) => {
-                  console.log('robotstop', moveInstruction.command);
+                    const stopCmp = moveInstruction.command || 'S';
 
-                  const stopCmp = moveInstruction.command || 'S';
+                    this.sendRobotCommand(stopCmp);
+                });
+            });
+        });
 
-                  this.sendRobotCommand(stopCmp);
-              });
-          });
-      });
+        this.socket.on('error', (err) => {
+            showErrorToast(err.toString());
+        });
 
-      this.socket.on('error', (err) => {
-          showErrorToast(err.toString());
-      });
+        this.socket.connect();
+    }
 
-      this.socket.connect();
-  }
+    connectToRobotByUsbSerial() {
+        const me = this;
 
-  connectToRobotByUsbSerial() {
-      const me = this;
+        async function getDeviceAsync(productId) {
 
-      async function getDeviceAsync(productId) {
+            try {
+                const deviceList = await me.usbs.getDeviceListAsync();
 
-          try {
-              const deviceList = await me.usbs.getDeviceListAsync();
+                const filteredDevList = deviceList.filter((dev) => {
+                    return dev.productId == productId;
+                });
 
-              const filteredDevList = deviceList.filter((dev) => {
-                 return dev.productId == productId;
-              });
+                if (filteredDevList.length > 0) {
+                    // Get the first
+                    const deviceObj = filteredDevList[0];
 
-              if (filteredDevList.length > 0) {
-                  // Get the first
-                  const deviceObj = filteredDevList[0];
+                    let usbSerialDevice = await me.usbs.openDeviceAsync(deviceObj);
 
-                  let usbSerialDevice = await me.usbs.openDeviceAsync(deviceObj);
+                    if (usbSerialDevice)
+                        me.setState({robotDevice: usbSerialDevice});
+                    else
+                        showErrorToast('usbSerialDevice retured empty');
+                } else
+                    showErrorToast(`No device found in list with the productId ${productId}`);
 
-                  if (usbSerialDevice)
-                      me.setState({ robotDevice: usbSerialDevice });
-                  else
-                      showErrorToast('usbSerialDevice retured empty');
-              } else
-                  showErrorToast(`No device found in list with the productId ${productId}`);
+            } catch (err) {
+                showErrorToast(err.toString());
+            }
+        }
 
-          } catch (err) {
-              showErrorToast(err.toString());
-          }
-      }
+        getDeviceAsync(67);
+    }
 
-      getDeviceAsync(67);
-  }
+    sendRobotCommand(command) {
 
-  sendRobotCommand(command) {
+        async function _writeAsync(cmp) {
 
-      async function _writeAsync(cmp) {
+            try {
+                await this.state.robotDevice.writeAsync();
+            } catch (err) {
+                showErrorToast(err.toString());
+            }
+        }
 
-          try {
-              await this.state.robotDevice.writeAsync();
-          } catch (err) {
-              showErrorToast(err.toString());
-          }
-      }
+        if (this.state.robotDevice) {
+            _writeAsync(command);
+        } else {
+            showErrorToast('There is no device connected. Impossible write');
+        }
+    }
 
-      if (this.state.robotDevice) {
-          _writeAsync(command);
-      } else {
-          showErrorToast('There is no device connected. Impossible write');
-      }
-  }
+    get shareIcon() {
+        return require('../assets/ic_screen_share_white_36dp.png');
+    }
 
-  render() {
-    return (
-        <View style={styles.container}>
-            <StatusBar animated hidden />
+    get deviceIcon() {
+        return require('../assets/ic_developer_board_white_36dp.png');
+    }
 
-            <View style={[styles.overlay, styles.topOverlay]}>
-                <Text style={styles.token}>
-                    { this.state.token }
-                </Text>
+    get getDeviceStateStyle() {
+
+        if (this.state.robotDevice) {
+            return {};
+        }
+
+        return { backgroundColor: '#db4336' };
+    }
+
+    onClickShareButton() {
+        console.log('in the onClickShareButton event');
+    }
+
+    render() {
+        return (
+            <View style={styles.container}>
+                <StatusBar animated hidden/>
+
+                <RTCCamera
+                    socket={this.socket}
+                    style={{ width: this.state.windowWidth, height: this.state.windowHeight }}
+                />
+
+                <View style={styles.stageContainer}>
+                    <ViewersList socket={this.socket} />
+                </View>
+
+                <TouchableOpacity style={styles.shareButton} onPress={this.onClickShareButton}>
+                    <Image style={styles.buttonImage} source={this.shareIcon} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.deviceIcon, this.getDeviceStateStyle]}>
+                    <Image style={styles.buttonImage} source={this.deviceIcon} />
+                </TouchableOpacity>
+
             </View>
-
-            <RTCCamera socket={this.socket} />
-        </View>
-    );
-  }
+        );
+    }
 }
+
+// <View style={[styles.overlay, styles.topOverlay]}>
+//     <Text style={styles.token}>
+//         { this.state.token }
+//     </Text>
+// </View>
+// <RTCCamera socket={this.socket}/>
+
 
 function showErrorToast(...strError) {
 

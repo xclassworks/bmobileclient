@@ -14,15 +14,14 @@ import {
     MediaStreamTrack,
     getUserMedia
 } from 'react-native-webrtc';
-import Socket from 'react-native-socketio';
 
 // Bmate configurations
 import CONFIGS from '../bconfig/configs.json';
 
 // Component style
 const styles = StyleSheet.create({
-    defaultRTCView: {
-        width:          500,
+    fallbackRTCView: {
+        width:          300,
         height:         300
     }
 });
@@ -33,7 +32,8 @@ export default class RTCCamera extends Component {
 
         this.state = {
             stream:     null,
-            streamURL:  null
+            streamURL:  null,
+            rtcViewStyle: props.style || styles.fallbackRTCView
         };
 
         if (!props.socket) {
@@ -51,7 +51,7 @@ export default class RTCCamera extends Component {
 
     render() {
         return (
-            <RTCView streamURL={this.state.streamURL} style={styles.defaultRTCView} />
+            <RTCView streamURL={this.state.streamURL} style={this.state.rtcViewStyle} />
         );
     }
 
