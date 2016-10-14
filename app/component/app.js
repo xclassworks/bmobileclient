@@ -16,13 +16,14 @@ import ViewersList from './ViewersList';
 
 import Socket from 'react-native-socketio';
 import UsbSerial from 'react-native-usbserial';
+import Share from 'react-native-share';
 import CONFIG from '../bconfig/configs.json';
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         flexDirection:      'column',
-        backgroundColor:    '#ededed',
+        backgroundColor:    '#262626',
         justifyContent:     'center',
         alignItems:         'center'
     },
@@ -31,11 +32,11 @@ const styles = StyleSheet.create({
         position:           'absolute',
         top:                0,
         right:              10,
-        backgroundColor:    '#262626',
+        backgroundColor:    '#32cf9f',
         marginTop:          10,
         marginRight:        10,
         borderRadius:       50,
-        zIndex:             50,
+        zIndex:             50
     },
     deviceIcon: {
         backgroundColor:    '#32cf9f',
@@ -44,7 +45,11 @@ const styles = StyleSheet.create({
         position:           'absolute',
         bottom:             10,
         right:              10,
-        zIndex:             50,
+        zIndex:             50
+    },
+    buttonImage: {
+        width: 30,
+        height: 30
     },
     stageContainer: {
         flex:           1,
@@ -89,7 +94,6 @@ export default class App extends Component {
     connectToSocket() {
 
         this.socket.on('connect', () => {
-            console.log('Socket connected');
 
             this.socket.emit('robotregister', {nickName: 'Awesome first robot'});
 
@@ -152,7 +156,8 @@ export default class App extends Component {
                     else
                         showErrorToast('usbSerialDevice retured empty');
                 } else
-                    showErrorToast(`No device found in list with the productId ${productId}`);
+                    showErrorToast('Nenhum robô conectado encontrado');
+                    // showErrorToast(`No device found in list with the productId ${productId}`);
 
             } catch (err) {
                 showErrorToast(err.toString());
@@ -181,11 +186,11 @@ export default class App extends Component {
     }
 
     get shareIcon() {
-        return require('../assets/ic_screen_share_white_36dp.png');
+        return require('../assets/ic_screen_share_white_48dp.png');
     }
 
     get deviceIcon() {
-        return require('../assets/ic_developer_board_white_36dp.png');
+        return require('../assets/ic_developer_board_white_48dp.png');
     }
 
     get getDeviceStateStyle() {
@@ -198,7 +203,27 @@ export default class App extends Component {
     }
 
     onClickShareButton() {
-        console.log('in the onClickShareButton event');
+        console.log(this.socket);
+
+//         const url = `${CONFIG.webApp.trasferProtocol}://${CONFIG.webApp.address}:${CONFIG.webApp.port}`;
+//
+//         const robotAccessURL = {
+//             title: "Acesso à um robô Bmate",
+//             message: `Olá! Alguém compartilhou o acesso à um robô bmate com você. Click no link para entrar
+// na sala`,
+//             url: url,
+//             subject: "Acesso a um Bmate",
+//             social: 'email'
+//         };
+//
+//         Share.shareSingle(robotAccessURL);
+    }
+
+    onClickDeviceButton() {
+
+        if (!this.state.robotDevice) {
+            this.connectToRobotByUsbSerial();
+        }
     }
 
     render() {
@@ -219,7 +244,10 @@ export default class App extends Component {
                     <Image style={styles.buttonImage} source={this.shareIcon} />
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.deviceIcon, this.getDeviceStateStyle]}>
+                <TouchableOpacity
+                    style={[styles.deviceIcon, this.getDeviceStateStyle]}
+                    onPress={() => this.onClickDeviceButton()}
+                >
                     <Image style={styles.buttonImage} source={this.deviceIcon} />
                 </TouchableOpacity>
 
@@ -239,7 +267,7 @@ export default class App extends Component {
 function showErrorToast(...strError) {
 
     if (strError.length > 0) {
-        console.warn(strError.join(' '));
+        console.log(strError.join(' '));
 
         ToastAndroid.show(strError.join(' '), ToastAndroid.LONG);
     }

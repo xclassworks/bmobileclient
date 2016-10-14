@@ -4,6 +4,7 @@ import android.app.Application;
 import android.util.Log;
 
 import com.facebook.react.ReactApplication;
+import cl.json.RNSharePackage;
 import com.bmateam.reactnativeusbserial.ReactUsbSerialPackage;
 import com.oney.WebRTCModule.WebRTCModulePackage;
 import com.lwansbrough.RCTCamera.RCTCameraPackage;
@@ -28,6 +29,7 @@ public class MainApplication extends Application implements ReactApplication {
     protected List<ReactPackage> getPackages() {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
+            new RNSharePackage(),
             new ReactUsbSerialPackage(),
             new WebRTCModulePackage(),
             new RCTCameraPackage(),
