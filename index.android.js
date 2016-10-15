@@ -8,7 +8,7 @@ import {
     NativeModules
 } from 'react-native';
 
-import App from './app/component/app';
+import App from './app/component/App';
 
 class bmobileclient extends Component {
 

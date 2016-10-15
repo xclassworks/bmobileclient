@@ -21,8 +21,8 @@ import CONFIGS from '../bconfig/configs.json';
 // Component style
 const styles = StyleSheet.create({
     fallbackRTCView: {
-        width:          300,
-        height:         300
+        width:      300,
+        height:     300
     }
 });
 
@@ -122,7 +122,7 @@ export default class RTCCamera extends Component {
         const PC = this.PC;
         const socket = this.socket;
 
-        socket.on('signalingMessage', (message) => {
+        socket.on('signaling_message', (message) => {
             const msg = message[0];
 
             switch (msg.type) {
@@ -138,21 +138,29 @@ export default class RTCCamera extends Component {
                                                         candidate)
                     );
                     break;
-                case 'sendOffer':
-                    createOffer();
+                case 'request_offer':
+                    createOffer(msg);
                     break;
             }
         });
 
         // Signaling channel functions
 
-        function createOffer() {
+        function createOffer(msg) {
             const onCreateOfferSuccess = (desc) => {
 
                 PC.setLocalDescription(desc,
-                    () => socket.emit('signalingMessage', { type: 'offer', desc: PC.localDescription }),
+                    () => {
+                        const response = {
+                            type:   'offer',
+                            to:     msg.from,
+                            desc:   PC.localDescription
+                        };
+
+                        socket.emit('signalingMessage', response);
+                    },
                     generalErrorHandler);
-            }
+            };
 
             const offerConstraints = {
                 offerToReceiveAudio: 1,

@@ -71,8 +71,7 @@ export default class App extends Component {
         const dimension = Dimensions.get('window');
 
         this.state = {
-            token: null,
-            robotDevice: null,
+            robot: null,
             moveInstructions: {
                 moveType:   null,
                 direction:  null
@@ -94,15 +93,13 @@ export default class App extends Component {
     connectToSocket() {
 
         this.socket.on('connect', () => {
+            console.log('Socket connection estabelished');
 
-            this.socket.emit('robotregister', {nickName: 'Awesome first robot'});
+            this.socket.on('robot_register:success', (robot) => {
+                this.robot = robot[0];
 
-            this.socket.on('robotregister:success', (robot) => {
-                this.setState({token: robot[0].token});
-
-                console.log('Token', this.state.token);
-
-                this.socket.on('robotmove', (moveInstructions) => {
+                // Listen robot move events
+                this.socket.on('do_robot_movement', (moveInstructions) => {
                     const mi = moveInstructions[0];
 
                     this.setState({moveInstructions: mi});
@@ -116,19 +113,27 @@ export default class App extends Component {
                     }
                 });
 
-                this.socket.on('robotstop', (moveInstruction) => {
+                this.socket.on('do_robot_stop', (moveInstruction) => {
                     console.log('robotstop', moveInstruction.command);
 
                     const stopCmp = moveInstruction.command || 'S';
 
                     this.sendRobotCommand(stopCmp);
                 });
+
+                this.socket.on('get_robot_room_access:success', (obj) => {
+                    this.shareAccessToken(obj[0].accessToken);
+                });
+
+                this.socket.on('get_robot_room_access:error', showErrorToast);
             });
+
+            this.socket.on('robot_register:error', showErrorToast);
+
+            this.socket.emit('robot_register', { nickName: 'BmateRobot' });
         });
 
-        this.socket.on('error', (err) => {
-            showErrorToast(err.toString());
-        });
+        this.socket.on('error', showErrorToast);
 
         this.socket.connect();
     }
@@ -172,13 +177,13 @@ export default class App extends Component {
         async function _writeAsync(cmp) {
 
             try {
-                await this.state.robotDevice.writeAsync();
+                await this.state.robot.writeAsync();
             } catch (err) {
-                showErrorToast(err.toString());
+                showErrorToast(err);
             }
         }
 
-        if (this.state.robotDevice) {
+        if (this.state.robot) {
             _writeAsync(command);
         } else {
             showErrorToast('There is no device connected. Impossible write');
@@ -203,27 +208,37 @@ export default class App extends Component {
     }
 
     onClickShareButton() {
-        console.log(this.socket);
 
-//         const url = `${CONFIG.webApp.trasferProtocol}://${CONFIG.webApp.address}:${CONFIG.webApp.port}`;
-//
-//         const robotAccessURL = {
-//             title: "Acesso à um robô Bmate",
-//             message: `Olá! Alguém compartilhou o acesso à um robô bmate com você. Click no link para entrar
-// na sala`,
-//             url: url,
-//             subject: "Acesso a um Bmate",
-//             social: 'email'
-//         };
-//
-//         Share.shareSingle(robotAccessURL);
+        if (this.isSocketConnected())
+            this.socket.emit('get_robot_room_access', {});
     }
 
     onClickDeviceButton() {
 
-        if (!this.state.robotDevice) {
+        if (!this.state.robotDevice)
             this.connectToRobotByUsbSerial();
-        }
+    }
+
+    shareAccessToken(accessToken) {
+        const url = `${CONFIG.webApp.trasferProtocol}://${CONFIG.webApp.address}:${CONFIG.webApp.port}/stage/#join/${accessToken}`;
+
+        const robotAccessURL = {
+            title: "Acesso à um robô Bmate",
+            message: `Olá! Alguém compartilhou o acesso à um robô bmate com você!
+
+Click no link para entrar na sala
+
+`,
+            url: url,
+            subject: "Acesso a um Bmate",
+            social: 'email'
+        };
+
+        Share.shareSingle(robotAccessURL);
+    }
+
+    isSocketConnected() {
+        return this.socket.isConnected;
     }
 
     render() {
@@ -240,7 +255,7 @@ export default class App extends Component {
                     <ViewersList socket={this.socket} />
                 </View>
 
-                <TouchableOpacity style={styles.shareButton} onPress={this.onClickShareButton}>
+                <TouchableOpacity style={styles.shareButton} onPress={() => this.onClickShareButton()}>
                     <Image style={styles.buttonImage} source={this.shareIcon} />
                 </TouchableOpacity>
 
@@ -256,20 +271,20 @@ export default class App extends Component {
     }
 }
 
-// <View style={[styles.overlay, styles.topOverlay]}>
-//     <Text style={styles.token}>
-//         { this.state.token }
-//     </Text>
-// </View>
-// <RTCCamera socket={this.socket}/>
+function showErrorToast(...errors) {
 
+    if (errors.length > 0) {
+        const strMessageArray = errors.map((err) => {
 
-function showErrorToast(...strError) {
+            if (typeof err != 'string')
+                return err.toString();
 
-    if (strError.length > 0) {
-        console.log(strError.join(' '));
+            return err;
+        });
 
-        ToastAndroid.show(strError.join(' '), ToastAndroid.LONG);
+        console.log(errors);
+
+        ToastAndroid.show(strMessageArray.join(' '), ToastAndroid.LONG);
     }
 }
 

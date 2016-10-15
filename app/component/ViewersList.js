@@ -38,15 +38,38 @@ export default class ViewersList extends Component {
         this.socket = props.socket;
 
         this.state = {
-            viewers: [
-                {id: 2, name: 'bixo'},
-                {id: 3, name: 'Olha a fera ai'},
-                {id: 4, name: 'Olha a fera ai'},
-                {id: 5, name: 'Olha a fera ai'}
-            ]
+            viewers: []
         };
+
+        this.listenSocketViewersEvents();
     }
-    
+
+    listenSocketViewersEvents() {
+
+        this.socket.on('viewer_add', (array) => {
+            const viewer = array[0];
+
+            const newViewers = this.state.viewers.splice(0);
+
+            newViewers.push(viewer);
+
+            this.setState({
+                viewer: newViewers
+            });
+        });
+
+        this.socket.on('viewer_left', (array) => {
+            const viewer = array[0];
+            const newViewers = this.state.viewers.filter((v) => {
+                return v.id != viewer.id;
+            });
+
+            this.setState({
+                viewers: newViewers
+            });
+        });
+    }
+
     _renderRow(viewer) {
         return (
             <View style={styles.viewer}>
