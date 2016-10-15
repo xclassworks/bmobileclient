@@ -1,3 +1,0 @@
-[submodule "app/bconfig"]
-	path = app/bconfig
-	url = https://github.com/xclassworks/bconfig.git
