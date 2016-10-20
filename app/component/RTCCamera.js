@@ -15,8 +15,7 @@ import {
     getUserMedia
 } from 'react-native-webrtc';
 
-// Bmate configurations
-import CONFIGS from '../bconfig/configs.json';
+import { getAppConfigs, showErrorToast } from '../util/utils';
 
 // Component style
 const styles = StyleSheet.create({
@@ -33,7 +32,8 @@ export default class RTCCamera extends Component {
         this.state = {
             stream:     null,
             streamURL:  null,
-            rtcViewStyle: props.style || styles.fallbackRTCView
+            rtcViewStyle: props.style || styles.fallbackRTCView,
+            peerStreamList: []
         };
 
         if (!props.socket) {
@@ -45,17 +45,38 @@ export default class RTCCamera extends Component {
         this.socket = props.socket;
         this.PC = null;
 
-        this.createPeerConnection();
-        this.getUserMedia();
+        getAppConfigs().then((confs) => {
+            this.CONFIGS = confs;
+
+            this.createPeerConnection();
+            this.getUserMedia();
+        })
+        .catch(showErrorToast);
+    }
+
+    _renderRTCView(peerStream) {
+        return (
+            <RTCView streamURL={peerStream} style={{ position: 'absolute', width: 300, height: 300 }} />
+        );
     }
 
     render() {
         return (
-            <RTCView streamURL={this.state.streamURL} style={this.state.rtcViewStyle} />
+            <View>
+                <RTCView
+                    streamURL={this.state.streamURL}
+                    peerConnection={this.PC}
+                    style={this.state.rtcViewStyle}
+                />
+
+                { this.state.peerStreamList.map(this._renderRTCView) }
+            </View>
         );
     }
 
     createPeerConnection() {
+        const CONFIGS = this.CONFIGS;
+
         // Local Peer Connection
         const PC = new RTCPeerConnection(CONFIGS.webRTC);
 
@@ -76,10 +97,6 @@ export default class RTCCamera extends Component {
         PC.onsignalingstatechange = (event) => console.log('onsignalingstatechange',
                                                                 event.target.signalingState);
 
-        PC.onaddstream = (event) => console.log('onaddstream', event.stream);
-
-        PC.onremovestream = (event) => console.log('onremovestream', event.stream);
-
         this.PC = PC;
     }
 
@@ -90,7 +107,7 @@ export default class RTCCamera extends Component {
             });
 
             if (videoSourceList.length === 0) {
-                alertProblem('No video available in device');
+                showErrorToast('No video available in device');
             } else {
                 // Get the first available video source id
                 const videoSourceId = videoSourceList[0].id;
@@ -113,7 +130,7 @@ export default class RTCCamera extends Component {
                     }
                 };
 
-                getUserMedia(userMediaConfig, successHandler, generalErrorHandler);
+                getUserMedia(userMediaConfig, successHandler, showErrorToast);
             }
         });
     }
@@ -134,12 +151,15 @@ export default class RTCCamera extends Component {
 
                     PC.addIceCandidate(candidate,
                         () => console.log('Ice candidate added with success', candidate),
-                        (err) => generalErrorHandler('Error adding ice candidate', err,
+                        (err) => showErrorToast('Error adding ice candidate', err,
                                                         candidate)
                     );
                     break;
                 case 'request_offer':
                     createOffer(msg);
+                    break;
+                case 'robot_offer':
+                    createAnswer(msg);
                     break;
             }
         });
@@ -157,9 +177,9 @@ export default class RTCCamera extends Component {
                             desc:   PC.localDescription
                         };
 
-                        socket.emit('signalingMessage', response);
+                        socket.emit('signaling_message', response);
                     },
-                    generalErrorHandler);
+                    showErrorToast);
             };
 
             const offerConstraints = {
@@ -167,7 +187,7 @@ export default class RTCCamera extends Component {
                 offerToReceiveVideo: 1
             };
 
-            PC.createOffer(onCreateOfferSuccess, generalErrorHandler, offerConstraints);
+            PC.createOffer(onCreateOfferSuccess, showErrorToast, offerConstraints);
         }
 
         function setRemoteDescription(desc) {
@@ -177,22 +197,38 @@ export default class RTCCamera extends Component {
 
             PC.setRemoteDescription(new RTCSessionDescription(desc),
                 onRemoteDescriptionSuccess,
-                generalErrorHandler
+                showErrorToast
+            );
+        }
+
+        function createAnswer(msg) {
+            const onCreateAnswerSuccess = (desc) => {
+
+                PC.setLocalDescription(new RTCSessionDescription(desc),
+                    () => {
+                        const response = {
+                            type:   'viewer_offer_answer',
+                            desc:   desc,
+                            to:     msg.from
+                        };
+
+                        socket.emit('signaling_message', response);
+                    },
+                    showErrorToast
+                );
+            };
+
+            const onRemoteDescriptionSuccess = () => {
+                PC.createAnswer(
+                    onCreateAnswerSuccess,
+                    showErrorToast
+                );
+            };
+
+            PC.setRemoteDescription(new RTCSessionDescription(msg.desc),
+                onRemoteDescriptionSuccess,
+                showErrorToast
             );
         }
     }
-}
-
-// Utils functions
-
-function alertProblem(...messages) {
-    const msg = messages.join(' ');
-
-    console.log(msg);
-
-    ToastAndroid.show(msg, ToastAndroid.SHORT);
-}
-
-function generalErrorHandler(error) {
-    alertProblem(error.toString());
 }

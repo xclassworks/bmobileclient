@@ -11,13 +11,14 @@ import {
     ScrollView,
     Dimensions
 } from 'react-native';
-import RTCCamera from './RTCCamera';
-import ViewersList from './ViewersList';
 
 import Socket from 'react-native-socketio';
 import UsbSerial from 'react-native-usbserial';
 import Share from 'react-native-share';
-import CONFIG from '../bconfig/configs.json';
+
+import RTCCamera from './RTCCamera';
+import ViewersList from './ViewersList';
+import { getAppConfigs, showErrorToast } from '../util/utils';
 
 const styles = StyleSheet.create({
     container: {
@@ -72,6 +73,7 @@ export default class App extends Component {
 
         this.state = {
             robot: null,
+            socket: null,
             moveInstructions: {
                 moveType:   null,
                 direction:  null
@@ -80,40 +82,46 @@ export default class App extends Component {
             windowHeight: dimension.height
         };
 
-        const usbs = new UsbSerial();
-        const socket = createSocketConnection();
+        getAppConfigs().then((confs) => {
+            this.CONFIGS = confs;
 
-        this.socket = socket;
-        this.usbs = usbs;
+            const usbs = new UsbSerial();
+            const socket = createSocketConnection(this.CONFIGS);
 
-        this.connectToSocket();
-        this.connectToRobotByUsbSerial();
+            this.setState({ socket: socket });
+
+            this.usbs = usbs;
+
+            this.connectToSocket();
+            this.connectToRobotByUsbSerial();
+        })
+        .catch(showErrorToast);
     }
 
     connectToSocket() {
+        const socket = this.state.socket;
 
-        this.socket.on('connect', () => {
+        socket.on('connect', () => {
             console.log('Socket connection estabelished');
 
-            this.socket.on('robot_register:success', (robot) => {
+            socket.on('robot_register:success', (robot) => {
                 this.robot = robot[0];
 
                 // Listen robot move events
-                this.socket.on('do_robot_movement', (moveInstructions) => {
+                socket.on('do_robot_movement', (moveInstructions) => {
                     const mi = moveInstructions[0];
 
                     this.setState({moveInstructions: mi});
 
                     const movementCmd = getMovementCommand(mi);
 
-                    if (movementCmd) {
+                    if (movementCmd)
                         this.sendRobotCommand(movementCmd);
-                    } else {
+                    else
                         showErrorToast('Received invalid move instructions');
-                    }
                 });
 
-                this.socket.on('do_robot_stop', (moveInstruction) => {
+                socket.on('do_robot_stop', (moveInstruction) => {
                     console.log('robotstop', moveInstruction.command);
 
                     const stopCmp = moveInstruction.command || 'S';
@@ -121,21 +129,21 @@ export default class App extends Component {
                     this.sendRobotCommand(stopCmp);
                 });
 
-                this.socket.on('get_robot_room_access:success', (obj) => {
+                socket.on('get_robot_room_access:success', (obj) => {
                     this.shareAccessToken(obj[0].accessToken);
                 });
 
-                this.socket.on('get_robot_room_access:error', showErrorToast);
+                socket.on('get_robot_room_access:error', showErrorToast);
             });
 
-            this.socket.on('robot_register:error', showErrorToast);
+            socket.on('robot_register:error', showErrorToast);
 
-            this.socket.emit('robot_register', { nickName: 'BmateRobot' });
+            socket.emit('robot_register', { nickName: 'BmateRobot' });
         });
 
-        this.socket.on('error', showErrorToast);
+        socket.on('error', showErrorToast);
 
-        this.socket.connect();
+        socket.connect();
     }
 
     connectToRobotByUsbSerial() {
@@ -210,7 +218,7 @@ export default class App extends Component {
     onClickShareButton() {
 
         if (this.isSocketConnected())
-            this.socket.emit('get_robot_room_access', {});
+            this.state.socket.emit('get_robot_room_access', {});
     }
 
     onClickDeviceButton() {
@@ -220,7 +228,16 @@ export default class App extends Component {
     }
 
     shareAccessToken(accessToken) {
-        const url = `${CONFIG.webApp.trasferProtocol}://${CONFIG.webApp.address}:${CONFIG.webApp.port}/stage/#join/${accessToken}`;
+        const CONFIGS = this.CONFIGS;
+
+        let transferProtocol;
+
+        if (CONFIGS.useSecureServer) {
+            transferProtocol = 'https';
+        } else
+            transferProtocol = 'http';
+
+        const url = `${transferProtocol}://${CONFIGS.webApp.address}:${CONFIGS.webApp.port}/stage/#join/${accessToken}`;
 
         const robotAccessURL = {
             title: "Acesso à um robô Bmate",
@@ -238,7 +255,29 @@ Click no link para entrar na sala
     }
 
     isSocketConnected() {
-        return this.socket.isConnected;
+        return this.state.socket.isConnected;
+    }
+
+    _renderCameraCast() {
+
+        if (this.state.socket) {
+            return (
+                <View>
+                    <RTCCamera
+                        socket={this.state.socket}
+                        style={{ width: this.state.windowWidth, height: this.state.windowHeight }}
+                    />
+
+                    <View style={styles.stageContainer}>
+                        <ViewersList socket={this.state.socket} />
+                    </View>
+
+                    <TouchableOpacity style={styles.shareButton} onPress={() => this.onClickShareButton()}>
+                        <Image style={styles.buttonImage} source={this.shareIcon} />
+                    </TouchableOpacity>
+                </View>
+            );
+        }
     }
 
     render() {
@@ -246,18 +285,7 @@ Click no link para entrar na sala
             <View style={styles.container}>
                 <StatusBar animated hidden/>
 
-                <RTCCamera
-                    socket={this.socket}
-                    style={{ width: this.state.windowWidth, height: this.state.windowHeight }}
-                />
-
-                <View style={styles.stageContainer}>
-                    <ViewersList socket={this.socket} />
-                </View>
-
-                <TouchableOpacity style={styles.shareButton} onPress={() => this.onClickShareButton()}>
-                    <Image style={styles.buttonImage} source={this.shareIcon} />
-                </TouchableOpacity>
+                { this._renderCameraCast() }
 
                 <TouchableOpacity
                     style={[styles.deviceIcon, this.getDeviceStateStyle]}
@@ -268,23 +296,6 @@ Click no link para entrar na sala
 
             </View>
         );
-    }
-}
-
-function showErrorToast(...errors) {
-
-    if (errors.length > 0) {
-        const strMessageArray = errors.map((err) => {
-
-            if (typeof err != 'string')
-                return err.toString();
-
-            return err;
-        });
-
-        console.log(errors);
-
-        ToastAndroid.show(strMessageArray.join(' '), ToastAndroid.LONG);
     }
 }
 
@@ -322,13 +333,21 @@ function getMovementCommand(moveInstructions = {}) {
     }
 }
 
-function createSocketConnection() {
-    const url = `http://${CONFIG.socketServer.ipAddress}:${CONFIG.socketServer.port}`;
-    const config = {
+function createSocketConnection(CONFIGS) {
+    let protocol;
+
+    if (CONFIGS.useSecureServer) {
+        protocol = 'https';
+    } else {
+        protocol = 'http';
+    }
+
+    const url = `${protocol}://${CONFIGS.socketServer.address}:${CONFIGS.socketServer.port}`;
+    const socketOpts = {
         path: '/socket'
     };
 
-    return new Socket(url, config);
+    return new Socket(url, socketOpts);
 }
 
 AppRegistry.registerComponent('App', () => App);
