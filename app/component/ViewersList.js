@@ -6,6 +6,7 @@ import {
     Text,
     Image
 } from 'react-native';
+import { RTCView } from 'react-native-webrtc';
 import RTCCamera from './RTCCamera';
 
 const styles = {
@@ -36,15 +37,20 @@ export default class ViewersList extends Component {
         super(props);
 
         this.socket = props.socket;
+        this.PC = props.peerConnection;
 
         this.state = {
             viewers: []
         };
 
-        this.listenSocketViewersEvents();
+        if (this.socket)
+            this.listenToSocketViewersEvents();
+
+        if (this.PC)
+            this.listenToStreamPCEvents();
     }
 
-    listenSocketViewersEvents() {
+    listenToSocketViewersEvents() {
 
         this.socket.on('viewer_add', (array) => {
             const viewer = array[0];
@@ -54,7 +60,7 @@ export default class ViewersList extends Component {
             newViewers.push(viewer);
 
             this.setState({
-                viewer: newViewers
+                viewers: newViewers
             });
         });
 
@@ -70,15 +76,55 @@ export default class ViewersList extends Component {
         });
     }
 
+    listenToStreamPCEvents() {
+        const PC = this.PC;
+
+        PC.onaddstream = (event) => {
+            const lastViewer = this.state.viewers[0];
+
+            if (lastViewer) {
+                lastViewer.stream = event.stream.toURL();
+
+                this.setState({
+                    viewers: [lastViewer]
+                });
+
+                this.requestViewerOffer(lastViewer);
+            }
+        };
+
+        // PC.onremovestream = (event) => console.log('On the onremovestream event', event);
+    }
+
+    requestViewerOffer(viewer) {
+        this.socket.emit('signaling_message', { type: 'viewer_request_offer', to: viewer.id });
+    }
+
+    findViewer(id) {
+        const filteredList = this.state.viewers.map((v) => {
+            return v.id == id;
+        });
+
+        if (filteredList.length > 0)
+            return filteredList[0];
+    }
+
     _renderRow(viewer) {
-        return (
+
+        if (viewer.stream) {
             <View style={styles.viewer}>
-                <Image
-                    style={styles.viewerStage}
-                    source={{ uri: "http://media.salon.com/2014/12/bojack_horseman2.jpg" }}
-                />
+                <RTCView stream={viewer.stream} style={styles.viewerStage} />
             </View>
-        );
+        } else {
+            return (
+                <View style={styles.viewer}>
+                    <Image
+                        style={styles.viewerStage}
+                        source={{ uri: "https://s-media-cache-ak0.pinimg.com/564x/fd/0c/55/fd0c559856ca991e9e28937dc802f0b0.jpg" }}
+                    />
+                </View>
+            );
+        }
     }
 
     render() {

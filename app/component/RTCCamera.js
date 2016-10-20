@@ -32,8 +32,7 @@ export default class RTCCamera extends Component {
         this.state = {
             stream:     null,
             streamURL:  null,
-            rtcViewStyle: props.style || styles.fallbackRTCView,
-            peerStreamList: []
+            rtcViewStyle: props.style || styles.fallbackRTCView
         };
 
         if (!props.socket) {
@@ -42,62 +41,17 @@ export default class RTCCamera extends Component {
             return;
         }
 
+        if (!props.peerConnection) {
+            console.log('Impossible create a RTC stream without a peer connection');
+
+            return;
+        }
+
         this.socket = props.socket;
-        this.PC = null;
+        this.PC = props.peerConnection;
+        this.CONFIGS = props.configs;
 
-        getAppConfigs().then((confs) => {
-            this.CONFIGS = confs;
-
-            this.createPeerConnection();
-            this.getUserMedia();
-        })
-        .catch(showErrorToast);
-    }
-
-    _renderRTCView(peerStream) {
-        return (
-            <RTCView streamURL={peerStream} style={{ position: 'absolute', width: 300, height: 300 }} />
-        );
-    }
-
-    render() {
-        return (
-            <View>
-                <RTCView
-                    streamURL={this.state.streamURL}
-                    peerConnection={this.PC}
-                    style={this.state.rtcViewStyle}
-                />
-
-                { this.state.peerStreamList.map(this._renderRTCView) }
-            </View>
-        );
-    }
-
-    createPeerConnection() {
-        const CONFIGS = this.CONFIGS;
-
-        // Local Peer Connection
-        const PC = new RTCPeerConnection(CONFIGS.webRTC);
-
-        // Signaling socket
-        const socket = this.socket;
-
-        // Peer Connection events
-
-        PC.onicecandidate = (event) => {
-
-            if (event.candidate)
-                socket.emit('signalingMessage', { type: 'candidate', candidate: event.candidate });
-        };
-
-        PC.oniceconnectionstatechange = (event) => console.log('oniceconnectionstatechange',
-                                                                event.target.iceConnectionState);
-
-        PC.onsignalingstatechange = (event) => console.log('onsignalingstatechange',
-                                                                event.target.signalingState);
-
-        this.PC = PC;
+        this.getUserMedia();
     }
 
     getUserMedia() {
@@ -142,6 +96,8 @@ export default class RTCCamera extends Component {
         socket.on('signaling_message', (message) => {
             const msg = message[0];
 
+            console.log(msg);
+
             switch (msg.type) {
                 case 'offer':
                     setRemoteDescription(msg.desc);
@@ -158,7 +114,7 @@ export default class RTCCamera extends Component {
                 case 'request_offer':
                     createOffer(msg);
                     break;
-                case 'robot_offer':
+                case 'viewer_offer':
                     createAnswer(msg);
                     break;
             }
@@ -192,7 +148,7 @@ export default class RTCCamera extends Component {
 
         function setRemoteDescription(desc) {
             const onRemoteDescriptionSuccess = () => {
-                console.log('Set remote description completed with success');
+                // Set remote description completed with success
             };
 
             PC.setRemoteDescription(new RTCSessionDescription(desc),
@@ -202,6 +158,7 @@ export default class RTCCamera extends Component {
         }
 
         function createAnswer(msg) {
+
             const onCreateAnswerSuccess = (desc) => {
 
                 PC.setLocalDescription(new RTCSessionDescription(desc),
@@ -225,10 +182,22 @@ export default class RTCCamera extends Component {
                 );
             };
 
-            PC.setRemoteDescription(new RTCSessionDescription(msg.desc),
+            PC.setRemoteDescription(
+                new RTCSessionDescription(msg.desc),
                 onRemoteDescriptionSuccess,
                 showErrorToast
             );
         }
+    }
+
+    render() {
+        return (
+            <View>
+                <RTCView
+                    streamURL={this.state.streamURL}
+                    style={this.state.rtcViewStyle}
+                />
+            </View>
+        );
     }
 }

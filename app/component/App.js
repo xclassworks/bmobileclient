@@ -11,6 +11,7 @@ import {
     ScrollView,
     Dimensions
 } from 'react-native';
+import { RTCPeerConnection } from 'react-native-webrtc';
 
 import Socket from 'react-native-socketio';
 import UsbSerial from 'react-native-usbserial';
@@ -72,14 +73,15 @@ export default class App extends Component {
         const dimension = Dimensions.get('window');
 
         this.state = {
-            robot: null,
-            socket: null,
+            robot:          null,
+            socket:         null,
+            peerConnection: null,
+            windowWidth:    dimension.width,
+            windowHeight:   dimension.height,
             moveInstructions: {
                 moveType:   null,
                 direction:  null
             },
-            windowWidth: dimension.width,
-            windowHeight: dimension.height
         };
 
         getAppConfigs().then((confs) => {
@@ -87,8 +89,10 @@ export default class App extends Component {
 
             const usbs = new UsbSerial();
             const socket = createSocketConnection(this.CONFIGS);
+            const peerConnection = createPeerConnection(this.CONFIGS);
 
             this.setState({ socket: socket });
+            this.setState({ peerConnection: peerConnection });
 
             this.usbs = usbs;
 
@@ -102,7 +106,6 @@ export default class App extends Component {
         const socket = this.state.socket;
 
         socket.on('connect', () => {
-            console.log('Socket connection estabelished');
 
             socket.on('robot_register:success', (robot) => {
                 this.robot = robot[0];
@@ -122,8 +125,6 @@ export default class App extends Component {
                 });
 
                 socket.on('do_robot_stop', (moveInstruction) => {
-                    console.log('robotstop', moveInstruction.command);
-
                     const stopCmp = moveInstruction.command || 'S';
 
                     this.sendRobotCommand(stopCmp);
@@ -260,16 +261,18 @@ Click no link para entrar na sala
 
     _renderCameraCast() {
 
-        if (this.state.socket) {
+        if (this.state.socket && this.state.peerConnection) {
             return (
                 <View>
                     <RTCCamera
                         socket={this.state.socket}
+                        peerConnection={this.state.peerConnection}
+                        configs={this.CONFIGS}
                         style={{ width: this.state.windowWidth, height: this.state.windowHeight }}
                     />
 
                     <View style={styles.stageContainer}>
-                        <ViewersList socket={this.state.socket} />
+                        <ViewersList socket={this.state.socket} peerConnection={this.state.peerConnection} />
                     </View>
 
                     <TouchableOpacity style={styles.shareButton} onPress={() => this.onClickShareButton()}>
@@ -348,6 +351,10 @@ function createSocketConnection(CONFIGS) {
     };
 
     return new Socket(url, socketOpts);
+}
+
+function createPeerConnection(CONFIGS) {
+    return new RTCPeerConnection(CONFIGS.webRTC);
 }
 
 AppRegistry.registerComponent('App', () => App);
