@@ -57,9 +57,9 @@ const styles = StyleSheet.create({
         flex:           1,
         flexDirection:  'row',
         position:       'absolute',
-        zIndex:         10,
         top:            0,
-        left:           0
+        left:           0,
+        zIndex:         80
     },
     stageContainerItem: {
         flex: 1
@@ -263,16 +263,19 @@ Click no link para entrar na sala
         if (this.state.socket && this.state.peerConnection) {
             return (
                 <View>
+                    <View style={styles.stageContainer}>
+                        <ViewersList
+                            socket={this.state.socket}
+                            peerConnection={this.state.peerConnection}
+                        />
+                    </View>
+
                     <RTCCamera
                         socket={this.state.socket}
                         peerConnection={this.state.peerConnection}
                         configs={this.CONFIGS}
                         style={{ width: this.state.windowWidth, height: this.state.windowHeight }}
                     />
-
-                    <View style={styles.stageContainer}>
-                        <ViewersList socket={this.state.socket} peerConnection={this.state.peerConnection} />
-                    </View>
 
                     <TouchableOpacity style={styles.shareButton} onPress={() => this.onClickShareButton()}>
                         <Image style={styles.buttonImage} source={this.shareIcon} />

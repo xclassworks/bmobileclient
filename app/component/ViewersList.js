@@ -4,7 +4,8 @@ import {
     ScrollView,
     View,
     Text,
-    Image
+    Image,
+    TouchableOpacity
 } from 'react-native';
 import { RTCView } from 'react-native-webrtc';
 import RTCCamera from './RTCCamera';
@@ -54,8 +55,6 @@ export default class ViewersList extends Component {
 
         this.socket.on('viewer_add', (array) => {
             const viewer = array[0];
-
-            viewer.key = viewer.id;
 
             const newViewers = this.state.viewers.splice(0);
 
@@ -115,18 +114,18 @@ export default class ViewersList extends Component {
 
         if (viewer.stream) {
             return (
-                <View style={styles.viewer}>
-                    <View style={styles.viewerStage}>
+                <View style={styles.viewer} key={viewer.id}>
+                    <TouchableOpacity onPress={() => console.log('You did press me lol')}>
                         <RTCView
-                            stream={viewer.stream}
-                            style={{ width: 70, height: 70 }}
+                            streamURL={viewer.stream}
+                            style={styles.viewerStage}
                         />
-                    </View>
+                    </TouchableOpacity>
                 </View>
             );
         } else {
             return (
-                <View style={styles.viewer}>
+                <View style={styles.viewer} key={viewer.id}>
                     <Image
                         style={styles.viewerStage}
                         source={{ uri: "https://s-media-cache-ak0.pinimg.com/564x/fd/0c/55/fd0c559856ca991e9e28937dc802f0b0.jpg" }}
