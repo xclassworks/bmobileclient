@@ -3,8 +3,10 @@ import { ToastAndroid } from 'react-native';
 const getAppConfigs = () => {
     // return fetch('http://bmate.com.br/configs')
     //         .then((response) => response.json());
-    return fetch('http://192.168.1.45:8888/configs')
-            .then((response) => response.json());
+    return fetch('http://192.168.1.45/configs')
+            .then((response) => {
+                return response.json();
+            });
 };
 
 const showErrorToast = (...errors) => {

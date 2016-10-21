@@ -124,10 +124,10 @@ export default class App extends Component {
                         showErrorToast('Received invalid move instructions');
                 });
 
-                socket.on('do_robot_stop', (moveInstruction) => {
-                    const stopCmp = moveInstruction.command || 'S';
+                socket.on('stop_robot', () => {
+                    const stopCmd = 'S';
 
-                    this.sendRobotCommand(stopCmp);
+                    this.sendRobotCommand(stopCmd);
                 });
 
                 socket.on('get_robot_room_access:success', (obj) => {
@@ -160,18 +160,16 @@ export default class App extends Component {
                 });
 
                 if (filteredDevList.length > 0) {
-                    // Get the first
+                    // Get the first device
                     const deviceObj = filteredDevList[0];
-
-                    let usbSerialDevice = await me.usbs.openDeviceAsync(deviceObj);
+                    const usbSerialDevice = await me.usbs.openDeviceAsync(deviceObj);
 
                     if (usbSerialDevice)
-                        me.setState({robotDevice: usbSerialDevice});
+                        me.setState({robot: usbSerialDevice});
                     else
-                        showErrorToast('usbSerialDevice retured empty');
+                        showErrorToast('usbSerialDevice returned an empty entity');
                 } else
                     showErrorToast('Nenhum robô conectado encontrado');
-                    // showErrorToast(`No device found in list with the productId ${productId}`);
 
             } catch (err) {
                 showErrorToast(err.toString());
@@ -182,17 +180,18 @@ export default class App extends Component {
     }
 
     sendRobotCommand(command) {
+        const robot = this.state.robot;
 
-        async function _writeAsync(cmp) {
+        async function _writeAsync(cmd) {
 
             try {
-                await this.state.robot.writeAsync();
+                await robot.writeAsync(cmd);
             } catch (err) {
                 showErrorToast(err);
             }
         }
 
-        if (this.state.robot) {
+        if (robot) {
             _writeAsync(command);
         } else {
             showErrorToast('There is no device connected. Impossible write');
@@ -209,7 +208,7 @@ export default class App extends Component {
 
     get getDeviceStateStyle() {
 
-        if (this.state.robotDevice) {
+        if (this.state.robot) {
             return {};
         }
 
@@ -224,7 +223,7 @@ export default class App extends Component {
 
     onClickDeviceButton() {
 
-        if (!this.state.robotDevice)
+        if (!this.state.robot)
             this.connectToRobotByUsbSerial();
     }
 

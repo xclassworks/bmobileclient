@@ -55,6 +55,8 @@ export default class ViewersList extends Component {
         this.socket.on('viewer_add', (array) => {
             const viewer = array[0];
 
+            viewer.key = viewer.id;
+
             const newViewers = this.state.viewers.splice(0);
 
             newViewers.push(viewer);
@@ -112,9 +114,16 @@ export default class ViewersList extends Component {
     _renderRow(viewer) {
 
         if (viewer.stream) {
-            <View style={styles.viewer}>
-                <RTCView stream={viewer.stream} style={styles.viewerStage} />
-            </View>
+            return (
+                <View style={styles.viewer}>
+                    <View style={styles.viewerStage}>
+                        <RTCView
+                            stream={viewer.stream}
+                            style={{ width: 70, height: 70 }}
+                        />
+                    </View>
+                </View>
+            );
         } else {
             return (
                 <View style={styles.viewer}>
